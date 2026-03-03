@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Швидкочитання TXT/FB2</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    *{margin: 0; padding: 0;}
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background-color: #fcf9ee;
+      color: #222;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      min-height: 100dvh;
+    }
+    h1 {
+  background: linear-gradient(180deg, #b3cffe, #0f5bcd); 
+  background-clip: text; 
+  color: transparent;
+  font-size: 2.4em;
+  margin: 10px 0 5px;
+  font-weight: 100;
+}
+
+/* Стиль для input[type=file] */
+input[type="file"] {
+  display: none; /* ховаємо стандартний елемент */
+}
+
+label[for="fileInput"] {
+  display: inline-block;
+  background: linear-gradient(135deg, #58ABF9, #1e85e7);
+  color: #fff;
+  padding: 6px 12px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  font-size: 1.1em;
+  cursor: pointer;
+}
+    #controls {
+      display: flex;
+      justify-content: center;
+      gap: 12px; 
+      margin-top: 10px;     
+    }
+    button {
+      background: none;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 1.6em;
+      cursor: pointer;
+      padding: 8px;
+    }
+    button:hover {
+      background-color: #eee;
+      transform: scale(1.1);
+    }
+    #options {
+  display: flex;
+  justify-content: center;
+  padding: 5px 20px 15px;
+  gap: 10px; /* керує відстанню між селекторами */
+}
+    select {
+      padding: 4px 6px;
+      font-size: 1em;
+      border-radius: 8px;
+    }
+    #display {
+      flex: 1 0 auto; /* займає весь простір між футерами */
+      display: flex;
+      font-size: 1.5em;
+      padding: 10px;
+      min-height: 60px;
+      max-width: 95%;
+      line-height: 1.4; 
+      align-items: center;   /* вертикальне вирівнювання */
+      justify-content: center;     
+    }
+    body.dark { background-color: #313843; color: #eee; }
+    body.dark button { border-color: #666; }
+    body.dark button:hover { background-color: #333; }
+
+    #footer {
+  flex: 0 0 auto;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: #f9f3de; /* або темний фон у dark режимі */
+  box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+}
+
+#footertop {
+  flex: 0 0 auto;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background-color: #f9f3de; /* або темний фон у dark режимі */
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+body.dark #footer {
+  background-color: #111;
+}
+
+body.dark #footertop {
+  background-color: #111;
+}
+  </style>
+</head>
+<body>
+  <div id="footertop">
+  <h1>Швидкочитання</h1>  
+  <input type="file" id="fileInput" accept=".txt,.fb2">
+  <label for="fileInput">📂 Завантажити файл</label>
+</div>
+
+  <div id="display"></div>
+  
+  <!-- Кнопки -->
+   <div id="footer">
+  <div id="controls">
+    <button id="startBtn">▶️</button>
+    <button id="stopBtn">⏹️</button>
+    <button id="resumeBtn">⏯️</button>
+    <button id="themeBtn">🌙</button>
+  </div>
+  
+  <!-- Вибір слів і швидкості -->
+  <div id="options">
+    <label>Слів 
+      <select id="chunkSize">
+        <option value="1">1x</option>
+        <option value="2">2x</option>
+        <option value="3">3x</option>
+        <option value="4">4x</option>
+        <option value="5">5x</option>
+      </select>
+    </label>
+   
+    <label>Швидкість 
+      <select id="speed">
+        <option value="100">600 с/х</option>
+        <option value="200">300 с/х</option>
+        <option value="300" selected>200 с/х</option>
+        <option value="400">150 с/х</option>
+        <option value="500">120 с/х</option>
+      </select>
+    </label>
+
+<label>Розмір шрифту
+  <select id="fontSize">
+    <option value="1.2em">Малий</option>
+    <option value="1.5em" selected>Середній</option>
+    <option value="2em">Великий</option>
+    <option value="2.5em">Дуже великий</option>
+  </select>
+</label>
+  </div>
+  </div>
+  
+  <script>
+  let words = [], index = 0, timer = null, currentFile = null;
+
+  function showNext() {
+    if (index < words.length) {
+      const chunkSize = parseInt(document.getElementById('chunkSize').value);
+      const chunk = words.slice(index, index + chunkSize).join(' ');
+      document.getElementById('display').textContent = chunk;
+      index += chunkSize;
+    } else {
+      clearInterval(timer);
+      timer = null;
+    }
+  }
+
+  function saveProgress() {
+    if (currentFile) {
+      localStorage.setItem(currentFile + "_progress", index);
+    }
+  }
+
+  document.getElementById('fileInput').addEventListener('change', function() {
+    const file = this.files[0];
+    if (file) {
+      currentFile = file.name;
+      const reader = new FileReader();
+      reader.onload = e => {
+        if (file.name.toLowerCase().endsWith(".fb2")) {
+          // FB2 як XML
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(e.target.result, "application/xml");
+          const paragraphs = xmlDoc.getElementsByTagName("p");
+          let text = "";
+          for (let p of paragraphs) {
+            text += (p.textContent || "") + " ";
+          }
+          words = text.trim().split(/\s+/);
+        } else {
+          // TXT
+          words = e.target.result.trim().split(/\s+/);
+        }
+
+        // Відновлення прогресу
+        const saved = localStorage.getItem(currentFile + "_progress");
+        if (saved) {
+          index = parseInt(saved);
+          document.getElementById('display').textContent =
+            "Файл завантажено. Натисніть ▶️ щоб почати з початку або ⏯️ щоб продовжити з слова № " + index;
+        } else {
+          index = 0;
+          document.getElementById('display').textContent = "Файл завантажено. Натисніть ▶️ щоб почати";
+        }
+      };
+      reader.readAsText(file, "UTF-8");
+    }
+  });
+
+  document.getElementById('startBtn').onclick = () => {
+    index = 0; // завжди з початку
+    const speed = parseInt(document.getElementById('speed').value);
+    if (timer) clearInterval(timer);
+    timer = setInterval(showNext, speed);
+  };
+
+  document.getElementById('stopBtn').onclick = () => {
+    if (timer) { clearInterval(timer); timer = null; }
+    saveProgress(); // збереження тільки тут
+  };
+
+  document.getElementById('resumeBtn').onclick = () => {
+    const saved = localStorage.getItem(currentFile + "_progress");
+    if (saved) {
+      index = parseInt(saved); // продовжуємо з останнього місця
+    }
+    if (!timer) {
+      const speed = parseInt(document.getElementById('speed').value);
+      timer = setInterval(showNext, speed);
+    }
+  };
+
+  document.getElementById('themeBtn').onclick = () => {
+  document.body.classList.toggle('dark');
+  const themeBtn = document.getElementById('themeBtn');
+  if (document.body.classList.contains('dark')) {
+    themeBtn.textContent = "☀️"; // если включена тёмная тема → показываем солнце
+  } else {
+    themeBtn.textContent = "🌙"; // если светлая тема → показываем луну
+  }
+};
+
+  document.getElementById('fontSize').addEventListener('change', function() {
+  document.getElementById('display').style.fontSize = this.value;
+});
+
+
+    /*Установка как программа*/
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/fast-reader/sw.js')
+    .then(() => console.log('SW зареєстрований'))
+    .catch(error => console.error('Помилка реєстрації SW:', error));
+}
+</script>
+</body>
+</html>
